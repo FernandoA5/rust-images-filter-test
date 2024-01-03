@@ -1,7 +1,9 @@
+use std::iter;
+
 use image::{GenericImageView, ImageBuffer, DynamicImage};
 
 fn main() {
-    let img = image::open("src/test.jpg");
+    let img = image::open("src/test.png");
     let img_clone = img.unwrap().clone();
 
     let width = img_clone.width();
@@ -13,15 +15,10 @@ fn main() {
     let image_bytes = img_clone.into_bytes();
 
     let mut new_image_pixels: Vec<u8> = Vec::new();
-    for i in 0..image_bytes.len(){
-        if i % 3 == 0 &&  i<image_bytes.len()-3{
-            let sum = (image_bytes[i] as i32 + image_bytes[i+1] as i32 + image_bytes[i+2] as i32) / 3;
-            new_image_pixels.push(sum as u8);
-        }
-        if i == image_bytes.len()-1{
-            let sum = (image_bytes[i] as i32 + image_bytes[i-1] as i32 + image_bytes[i-2] as i32) /3;
-            new_image_pixels.push(sum as u8);
-        }
+    for i in (0..image_bytes.len()).step_by(3){
+        let suma: i32 = image_bytes[i..i+3].iter().map(|&x| x as i32).sum();
+        let promedio: u8 = (suma / 3) as u8;
+        new_image_pixels.push(promedio as u8);
     }
     //GUARDAR LA IMAGEN new_image_pixels
     let mut new_image: ImageBuffer<image::Rgb<u8>, Vec<u8>> = ImageBuffer::new(width, height);
