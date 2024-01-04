@@ -11,14 +11,14 @@ fn main() {
     //INICIAMOS CONTADOR DE TIEMPO
     let now = std::time::Instant::now();
 
-    let image = image::open("src/test2.jpg").unwrap();
+    let image = image::open("src/test3.jpg").unwrap();
     let (width, height) = image.dimensions();
     println!("width: {}, height: {}", width, height);
     let image_bytes = image.into_bytes();
     
 
-    // black_and_white(image_bytes, width, height);
-    blur(image_bytes, width, height, 10);
+    black_and_white(image_bytes, width, height);
+    // blur(image_bytes, width, height, 5);
 
     //FINALIZAMOS CONTADOR DE TIEMPO
     let elapsed = now.elapsed();
@@ -29,17 +29,36 @@ fn main() {
 
 fn black_and_white(image_bytes: Vec<u8>, width: u32, height: u32)
 {
-    let num_threads = rayon::current_num_threads();
-    println!("Número de hilos: {}", num_threads);
+    // let num_threads = rayon::current_num_threads();
+    // println!("Número de hilos: {}", num_threads);
 
-    let new_image_pixels: Vec<u8> = image_bytes.par_chunks(3)
-        .map(|chunk| {
-            let suma: i32 = chunk.iter().map(|&x| x as i32).sum();
-            let promedio: u8 = (suma / 3) as u8;
-            promedio as u8
-    }).collect();
+    // let new_image_pixels: Vec<u8> = image_bytes.par_chunks(3)
+    //     .map(|chunk| {
+    //         let suma: i32 = chunk.iter().map(|&x| x as i32).sum();
+    //         let promedio: u8 = (suma / 3) as u8;
+    //         promedio as u8
+    // }).collect();
 
-    save_image(new_image_pixels, width, height, "out_black_and_white");
+    let mut pixels_matrix = get_pixel_matrix(image_bytes, width, height);
+
+    //Aplicar el filtro
+    for row in 1..pixels_matrix.len()- 1{
+        for pixel in 1..pixels_matrix[row].len() - 1{
+
+            for i in 0..RGB_SIZE{
+                for j in 0..3 as usize{
+                    let mut sum: u32 = 0;
+                    for k in 0..3 as usize{
+                        sum += pixels_matrix[row-1+i][pixel-1+j][k] as u32;
+                    }
+                    let promedio = (sum / RGB_SIZE as u32) as u8;
+                pixels_matrix[row][pixel][i] = promedio;
+                }
+            }
+        }
+    }
+
+    save_matrix_image(&pixels_matrix, width, height, "out_black_and_white");
 }
 fn blur(image_bytes: Vec<u8>, width: u32, height: u32, intensidad: u8){
     
