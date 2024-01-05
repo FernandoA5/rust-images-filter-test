@@ -1,16 +1,17 @@
 use std::process::exit;
 // use rayon::prelude::*;
 use image::{GenericImageView, ImageBuffer};
+use rayon::{iter::{IntoParallelRefIterator, ParallelIterator}};
 
 const RGB_SIZE: usize = 3;
-const FILTER: usize = 4;
+const FILTER: usize = 1;
 
 fn main() {
 
     //INICIAMOS CONTADOR DE TIEMPO
     let now = std::time::Instant::now();
 
-    let image = image::open("img/zuria.jpeg").unwrap();
+    let image = image::open("img/gta.png").unwrap();
     let (width, height) = image.dimensions();
     println!("width: {}, height: {}", width, height);
     let image_bytes = image.into_bytes();
@@ -35,35 +36,20 @@ fn main() {
 }
 
 fn black_and_white(image_bytes: Vec<u8>, width: u32) -> Vec<Vec<Vec<u8>>> {
-    // let num_threads = rayon::current_num_threads();
-    // println!("Número de hilos: {}", num_threads);
 
-    // let new_image_pixels: Vec<u8> = image_bytes.par_chunks(3)
-    //     .map(|chunk| {
-    //         let suma: i32 = chunk.iter().map(|&x| x as i32).sum();
-    //         let promedio: u8 = (suma / 3) as u8;
-    //         promedio as u8
-    // }).collect();
+    let pixels_matrix = get_pixel_matrix(image_bytes, width);
 
-    let mut pixels_matrix = get_pixel_matrix(image_bytes, width);
+    //Aplicar el filtro (PARALELIZADO)
+    let new_image_pixels: Vec<Vec<Vec<u8>>> = pixels_matrix.par_iter().map(|row| {
+        row.par_iter().map(|pixel| {
+            let suma: i32 = pixel.iter().map(|&x| x as i32).sum();
+            let promedio: u8 = (suma / 3) as u8;
+            Vec::from([promedio, promedio, promedio])
+        }).collect()
+    }).collect();
 
-    //Aplicar el filtro
-    for row in 1..pixels_matrix.len()- 1{
-        for pixel in 1..pixels_matrix[row].len() - 1{
 
-            for i in 0..RGB_SIZE{
-                for j in 0..3 as usize{
-                    let mut sum: u32 = 0;
-                    for k in 0..3 as usize{
-                        sum += pixels_matrix[row-1+i][pixel-1+j][k] as u32;
-                    }
-                    let promedio = (sum / RGB_SIZE as u32) as u8;
-                pixels_matrix[row][pixel][i] = promedio;
-                }
-            }
-        }
-    }
-    pixels_matrix
+    new_image_pixels
 }
 fn blur(image_bytes: Vec<u8>, width: u32, intensidad: u8) -> Vec<Vec<Vec<u8>>>{
     
