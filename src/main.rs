@@ -1,7 +1,6 @@
+use std::process::exit;
 
-use std::fmt::format;
-
-use rayon::prelude::*;
+// use rayon::prelude::*;
 use image::{GenericImageView, ImageBuffer};
 
 const RGB_SIZE: usize = 3;
@@ -11,14 +10,15 @@ fn main() {
     //INICIAMOS CONTADOR DE TIEMPO
     let now = std::time::Instant::now();
 
-    let image = image::open("src/test3.jpg").unwrap();
+    let image = image::open("src/test2.jpg").unwrap();
     let (width, height) = image.dimensions();
     println!("width: {}, height: {}", width, height);
     let image_bytes = image.into_bytes();
     
 
-    black_and_white(image_bytes, width, height);
-    // blur(image_bytes, width, height, 5);
+    // black_and_white(image_bytes, width, height);
+    // blur(image_bytes, width, height, 1)K;
+    color(image_bytes, width, height, Vec::from([255, 0, 255]));
 
     //FINALIZAMOS CONTADOR DE TIEMPO
     let elapsed = now.elapsed();
@@ -39,7 +39,7 @@ fn black_and_white(image_bytes: Vec<u8>, width: u32, height: u32)
     //         promedio as u8
     // }).collect();
 
-    let mut pixels_matrix = get_pixel_matrix(image_bytes, width, height);
+    let mut pixels_matrix = get_pixel_matrix(image_bytes, width);
 
     //Aplicar el filtro
     for row in 1..pixels_matrix.len()- 1{
@@ -62,7 +62,7 @@ fn black_and_white(image_bytes: Vec<u8>, width: u32, height: u32)
 }
 fn blur(image_bytes: Vec<u8>, width: u32, height: u32, intensidad: u8){
     
-    let mut pixels_matrix = get_pixel_matrix(image_bytes, width, height);
+    let mut pixels_matrix = get_pixel_matrix(image_bytes, width);
     //Aplicar el filtro
     for _ in 0..intensidad as usize {
         for row in 1..pixels_matrix.len()- 1{
@@ -73,7 +73,7 @@ fn blur(image_bytes: Vec<u8>, width: u32, height: u32, intensidad: u8){
                     for j in 0..3 as usize{
                         for k in 0..3 as usize{
     
-                            let condicion = (row-1+k) == row && (pixel-1+j) == pixel;
+                            let condicion = k == 1 && j == 1;
                             let op = if condicion { 1 } else { 1 };
     
                             sum += pixels_matrix[row-1+k][pixel-1+j][i] as u32 * op;
@@ -89,20 +89,23 @@ fn blur(image_bytes: Vec<u8>, width: u32, height: u32, intensidad: u8){
     save_matrix_image(&pixels_matrix, width, height, "out_blur");
 
 }
+fn color(image_bytes: Vec<u8>, width: u32, height: u32, color: Vec<u8>){
+        
+        let mut pixels_matrix = get_pixel_matrix(image_bytes, width);
 
-//SAVE IMAGE
-fn save_image(new_image_pixels: Vec<u8>, width: u32, height: u32, filename: &str)
-{
-    // GUARDAR LA IMAGEN new_image_pixels
-    let mut new_image: ImageBuffer<image::Rgb<u8>, Vec<u8>> = ImageBuffer::new(width, height);
-    for (x, y, pixel) in new_image.enumerate_pixels_mut() {
-        let index = (x + y * width) as usize;
-        *pixel = image::Rgb([new_image_pixels[index], new_image_pixels[index], new_image_pixels[index]]);
-    }
-    new_image.save(format!("src/{}.png", filename )).unwrap();
+        //Aplicar el filtro
+        for row in 1..pixels_matrix.len()- 1{
+            for pixel in 1..pixels_matrix[row].len() - 1{
+                pixels_matrix[row][pixel] = pixels_matrix[row][pixel].iter().zip(color.iter()).map(|(x, y)| x ^ y).collect();
+            }
+        }
+        
+    
+        save_matrix_image(&pixels_matrix, width, height, "out_shape");
 }
 
-fn get_pixel_matrix(image_bytes: Vec<u8>, width: u32, height: u32) -> Vec<Vec<Vec<u8>>>
+
+fn get_pixel_matrix(image_bytes: Vec<u8>, width: u32) -> Vec<Vec<Vec<u8>>>
 {
     //Trabajemoslo como una matriz (Convertir el vector en una matriz)
     let mut pixels_array: Vec<Vec<u8>> = Vec::new();
