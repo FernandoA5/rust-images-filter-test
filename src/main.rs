@@ -1,17 +1,17 @@
 use std::process::exit;
 // use rayon::prelude::*;
 use image::{GenericImageView, ImageBuffer};
-use rayon::{iter::{IntoParallelRefIterator, ParallelIterator}};
+use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 
 const RGB_SIZE: usize = 3;
-const FILTER: usize = 1;
+const FILTER: usize = 6;
 
 fn main() {
 
     //INICIAMOS CONTADOR DE TIEMPO
     let now = std::time::Instant::now();
 
-    let image = image::open("img/gta.png").unwrap();
+    let image = image::open("img/gta.jpg").unwrap();
     let (width, height) = image.dimensions();
     println!("width: {}, height: {}", width, height);
     let image_bytes = image.into_bytes();
@@ -20,9 +20,11 @@ fn main() {
 
     match FILTER {
         1 => new_image_pixels = black_and_white(image_bytes, width),
-        2 => new_image_pixels = blur(image_bytes, width, 2),
+        2 => new_image_pixels = blur(image_bytes, width, 5),
         3 => new_image_pixels = color(image_bytes, width, Vec::from([255, 255, 255])),
         4 => new_image_pixels = borders(image_bytes, width),
+        5 => new_image_pixels = better_borders(image_bytes, width),
+        6 => new_image_pixels = sharp(image_bytes, width, 2),
         _ => exit(1)
         
     }
@@ -48,20 +50,17 @@ fn black_and_white(image_bytes: Vec<u8>, width: u32) -> Vec<Vec<Vec<u8>>> {
         }).collect()
     }).collect();
 
-
     new_image_pixels
 }
 fn blur(image_bytes: Vec<u8>, width: u32, intensidad: u8) -> Vec<Vec<Vec<u8>>>{
-    
     let mut pixels_matrix = get_pixel_matrix(image_bytes, width);
+    let mut new_pixels_matrix = pixels_matrix.clone();
     //Aplicar el filtro
-
     let kernel: [[i32; 3]; 3] = [
         [1, 1, 1],
         [1, 1, 1],
         [1, 1, 1],
     ];
-
     for _ in 0..intensidad as usize {
         for row in 1..pixels_matrix.len()- 1{
             for pixel in 1..pixels_matrix[row].len() - 1{
@@ -77,12 +76,19 @@ fn blur(image_bytes: Vec<u8>, width: u32, intensidad: u8) -> Vec<Vec<Vec<u8>>>{
                         }
                     }
                     let promedio = (sum / 9) as u8;
-                    pixels_matrix[row][pixel][i] = promedio;
+                    new_pixels_matrix[row][pixel][i] = promedio;
                 }
+
+                //PODEMOS CALCULAR PRIMERO LAS VENTANAS Y LUEGO RECORRERLAS 
+
+                //QUIZÁ DE ESA FORMA PODAMOS ELUDIR LAS RESTRICCIONES DE PRESTAMOS MUTABLES
+
+
             }
         }
+        pixels_matrix = new_pixels_matrix.clone();
     }
-    pixels_matrix
+    new_pixels_matrix
 
 }
 fn color(image_bytes: Vec<u8>, width: u32, color: Vec<u8>) -> Vec<Vec<Vec<u8>>>{
@@ -96,6 +102,106 @@ fn color(image_bytes: Vec<u8>, width: u32, color: Vec<u8>) -> Vec<Vec<Vec<u8>>>{
             }
         }
         pixels_matrix
+}
+
+
+fn better_borders(image_bytes: Vec<u8>, width: u32) -> Vec<Vec<Vec<u8>>>{
+    let pixels_matrix = get_pixel_matrix(image_bytes, width);
+    let mut new_image_pixels: Vec<Vec<Vec<u8>>> = pixels_matrix.clone();
+
+    //KERNEL PARA SHARPEN
+    let kernel: [[i32; 3]; 3] = [
+        [-1, 0, 1],
+        [-2, 0, 2],
+        [-1, 0, 1],
+    ];
+    //KERNEL 2
+    let kernel2: [[i32; 3]; 3] = [
+        [-1, -2, -1],
+        [0, 0, 0],
+        [1, 2, 1],
+    ];
+
+    //Aplicar el filtro
+    for row in 1..pixels_matrix.len()- 1{
+        for pixel in 1..pixels_matrix[row].len() - 1{
+
+            let mut sum: i32 = 0;
+            let mut sum2: i32 = 0;
+
+            for rgb in 0..RGB_SIZE{
+                for j in 0..3 as usize{
+                    for k in 0..3 as usize{
+
+                        let pixel_value = pixels_matrix[row-1+k][pixel-1+j][rgb] as i32;
+
+                        sum += pixel_value * kernel[k][j] as i32;
+                        sum2 += pixel_value * kernel2[k][j] as i32;
+                    }
+                }
+                // new_image_pixels[row][pixel][rgb] = ((sum + sum2) / 2)  as u8;
+                let cuadrados: f64 = (sum as f64).powf(2.0) + (sum2 as f64).powf(2.0);
+                new_image_pixels[row][pixel][rgb] = cuadrados.sqrt() as u8;
+            }
+
+            
+
+        }
+    }
+    new_image_pixels
+
+}
+
+fn sharp(image_bytes: Vec<u8>, width: u32, intensidad: u8) -> Vec<Vec<Vec<u8>>> {
+    let mut pixels_matrix = get_pixel_matrix(image_bytes, width);
+    let mut new_image_pixels: Vec<Vec<Vec<u8>>> = pixels_matrix.clone();
+    //KERNEL PARA SHARPEN
+    let kernel: [[i32; 3]; 3] = [
+        [0, -1, 0],
+        [-1, 5, -1],
+        [0, -1, 0],
+    ];
+
+    //Aplicar el filtro
+    for _ in 0..intensidad as usize {
+        for row in 1..pixels_matrix.len()- 1{
+            for pixel in 1..pixels_matrix[row].len() - 1{
+    
+                let mut sum: i32 = 0;
+                    for j in 0..3 as usize{
+                        for k in 0..3 as usize{
+    
+                            let pixel_value = pixels_matrix[row-1+k][pixel-1+j][0] as i32;
+    
+                            sum += pixel_value * kernel[k][j] as i32;
+                        }
+                    }
+    
+                    let last_r = new_image_pixels[row][pixel][0] as i32;
+                    let last_g = new_image_pixels[row][pixel][1] as i32;
+                    let last_b = new_image_pixels[row][pixel][2] as i32;
+    
+                    //REGLA DE 3
+                    let mut g = last_g * sum / last_r.max(1);
+                    let mut b = last_b * sum / last_r.max(1);
+    
+                    sum = if sum > 255 { 255 } else { sum };
+                    sum = if sum < 0 { 0 } else { sum };
+    
+                    g = if g > 255 { 255 } else { g };
+                    g = if g < 0 { 0 } else { g };
+    
+                    b = if b > 255 { 255 } else { b };
+                    b = if b < 0 { 0 } else { b };
+                    
+                    new_image_pixels[row][pixel][0] = (sum)  as u8;
+                    new_image_pixels[row][pixel][1] = (g)  as u8;
+                    new_image_pixels[row][pixel][2] = (b)  as u8;
+                }
+        }
+        pixels_matrix = new_image_pixels.clone();
+    }
+    new_image_pixels
 }
 
 
@@ -138,8 +244,6 @@ fn borders(image_bytes: Vec<u8>, width: u32) -> Vec<Vec<Vec<u8>>>{
     }
     new_image_pixels
 }
-
-
 
 fn get_pixel_matrix(image_bytes: Vec<u8>, width: u32) -> Vec<Vec<Vec<u8>>>
 {
